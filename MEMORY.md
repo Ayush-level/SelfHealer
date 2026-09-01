@@ -198,3 +198,17 @@ without re-reading the whole codebase.
 - **Test result:** verified `git submodule status` (1.11.0 pinned), `python -m pytest proxy/tests/ -q` (81 passed), `curl http://localhost:5000/health` (proxy started by smoke test), all docker compose commands match `docker-compose.yml` profiles and file names exactly — PASS
 - **Decisions/deviations:** removed the old placeholder Quick Start (two-line compose commands only) and replaced with complete operational runbook. All commands are exact — no placeholder `<repo-url>` left unexplained; only the Grafana password and LLM key require user action, which is called out explicitly.
 - **Next:** all tasks complete — project is demo-ready
+
+### [2026-09-02] — Task 3.3: Make Prometheus published port conditional on ENABLE_PROMETHEUS_UI
+- **Status:** done
+- **Changes:** `docker-compose.yml` prometheus service changed from `ports: ["9090:9090"]` to `expose: ["9090"]` only; created `docker-compose.prometheus-ui.yml` (adds `ports: ["${PROMETHEUS_PORT:-9090}:9090"]` to prometheus); updated `.env` and `.env.example` with `PROMETHEUS_PORT=9090` and explanatory comment
+- **Test result:** (1) Without override file: `docker ps` shows `9090/tcp` (expose only, no host binding), `curl localhost:9090/-/healthy` fails — NOT REACHABLE; `docker exec` health check passes — Prometheus serves data internally. (2) With override file: `docker ps` shows `0.0.0.0:9090->9090/tcp`, `curl localhost:9090/-/healthy` returns "Prometheus Server is Healthy." — PASS
+- **Decisions/deviations:** attempted env-var-controlled `published: "${PROMETHEUS_HOST_PORT}"` in long-form ports syntax first — Docker assigned a random ephemeral port when the var was empty instead of omitting the binding, so that approach was dropped. Compose override file is the correct Compose-native mechanism for conditional port publication. `ENABLE_PROMETHEUS_UI` is expressed as "include `docker-compose.prometheus-ui.yml`" rather than a boolean env var, which is consistent with how `STORAGE_MODE` is already expressed via the `--profile mode-a` flag.
+- **Next:** Task 7.1 — Scaffold the React SPA (`frontend/`) with routing for `/setup`, `/`, `/telemetry`, `/tools`, `/rca`
+
+### [2026-09-02] — Task 7.1: Scaffold React SPA
+- **Status:** done
+- **Changes:** created `frontend/` — `package.json` (vite 5.4.8, react 18.3.1, react-router-dom 6.26.2), `vite.config.js` (dev proxy `/api` → `http://localhost:5000`), `index.html`, `src/main.jsx`, `src/App.jsx` (BrowserRouter, 5 routes with `/setup` redirect when no config), `src/api/client.js` (9 typed fetch wrappers), and 5 page components (`Setup.jsx`, `Home.jsx`, `Telemetry.jsx`, `Tools.jsx`, `RCA.jsx`)
+- **Test result:** `npm install` required `npm approve-scripts esbuild` before esbuild's postinstall script ran; `npm run build` — exit 0, 39 modules transformed, 174 kB bundle. Preview server at `:4173` served the SPA shell. Each page catches API errors and renders an error message rather than crashing, verified by inspection.
+- **Decisions/deviations:** `App.jsx` `getConfig()` error path sets `hasConfig=false` (→ redirect to `/setup`) rather than hanging on `null` — proxy-unreachable at cold start lands on the wizard, not a blank screen. Pages are functional stubs (real data-binding wired to the API contract) rather than purely empty placeholders, so 7.2–7.5 extend them rather than rewrite them. `node_modules/` not committed (`.gitignore` already present from Vite).
+- **Next:** Task 7.2 — Build `proxy/routes/config.py`: `GET/POST /api/config`

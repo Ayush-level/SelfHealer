@@ -8,6 +8,9 @@ from proxy.adapters import PrometheusAdapter, ClickHouseMetricsAdapter
 from proxy.routes.health import health_bp
 from proxy.routes.correlate import correlate_bp
 from proxy.routes.rca import rca_bp
+from proxy.routes.config import config_bp
+from proxy.routes.tools import tools_bp
+from proxy.routes.api import api_bp
 from proxy.store.rca_store import RCAStore
 
 
@@ -35,10 +38,16 @@ def create_app(test_config: Optional[Dict[str, Any]] = None) -> Flask:
     # In-memory RCA approval store (one instance per app, survives requests)
     app.rca_store = RCAStore()
 
+    # In-memory wizard config store (empty dict = first run)
+    app.wizard_config = {}
+
     # Register blueprints
     app.register_blueprint(health_bp)
     app.register_blueprint(correlate_bp)
     app.register_blueprint(rca_bp)
+    app.register_blueprint(config_bp)
+    app.register_blueprint(tools_bp)
+    app.register_blueprint(api_bp)
 
     return app
 

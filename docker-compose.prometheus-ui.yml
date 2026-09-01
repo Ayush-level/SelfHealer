@@ -1,0 +1,7 @@
+# Include this file to expose Prometheus's own UI on localhost:9090.
+# Prometheus always runs as metrics storage in Mode A regardless of this file.
+# Usage: docker compose -f docker-compose.yml -f docker-compose.prometheus-ui.yml --profile mode-a up -d
+services:
+  prometheus:
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
