@@ -1,0 +1,41 @@
+apiVersion: 1
+
+datasources:
+  - name: ClickHouse
+    type: grafana-clickhouse-datasource
+    access: proxy
+    isDefault: false
+    editable: true
+    jsonData:
+      host: clickhouse          # Docker service name — reachable inside aiops-net
+      port: 9000                # native TCP port
+      protocol: native          # native protocol on 9000
+      username: default         # ClickHouse default user (no password)
+      defaultDatabase: default
+      dialTimeout: 10
+      queryTimeout: 60
+      logs:
+        defaultDatabase: default
+        defaultTable: otel_logs
+        otelEnabled: true       # enables OTel log schema awareness
+        otelVersion: latest
+        timeColumn: Timestamp
+        levelColumn: SeverityText
+        messageColumn: Body
+      traces:
+        defaultDatabase: default
+        defaultTable: otel_traces
+        otelEnabled: true       # enables OTel trace schema awareness
+        otelVersion: latest
+        traceIdColumn: TraceId
+        spanIdColumn: SpanId
+        operationNameColumn: SpanName
+        parentSpanIdColumn: ParentSpanId
+        serviceNameColumn: ServiceName
+        durationColumn: Duration
+        durationUnit: nanoseconds
+        startTimeColumn: Timestamp
+        tagsColumn: SpanAttributes
+        serviceTagsColumn: ResourceAttributes
+    secureJsonData:
+      password: ""              # ClickHouse default user has no password

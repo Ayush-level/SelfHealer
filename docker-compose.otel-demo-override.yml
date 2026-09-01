@@ -1,0 +1,229 @@
+networks:
+  aiops-net:
+    name: aiops-net
+
+services:
+  # Feature Flag Service (flagd)
+  flagd:
+    image: ghcr.io/open-feature/flagd:v0.10.2
+    container_name: flagd
+    command: ["start", "--uri", "file:/etc/flagd/demo.flagd.json"]
+    volumes:
+      - ./otel-demo/src/flagd:/etc/flagd:ro
+    ports:
+      - "8013:8013"
+    environment:
+      - FLAGD_OTEL_COLLECTOR_URI=otel-collector:4317
+      - FLAGD_METRICS_EXPORTER=otel
+      - OTEL_RESOURCE_ATTRIBUTES=service.namespace=opentelemetry-demo,service.version=1.11.0
+      - OTEL_SERVICE_NAME=flagd
+    networks:
+      - aiops-net
+    restart: unless-stopped
+
+  # Valkey (in-memory store for cartservice)
+  valkey-cart:
+    image: valkey/valkey:7.2-alpine
+    container_name: valkey-cart
+    networks:
+      - aiops-net
+    restart: unless-stopped
+
+  # Cart Service (.NET)
+  cartservice:
+    image: ghcr.io/open-telemetry/demo:1.11.0-cartservice
+    container_name: cart-service
+    ports:
+      - "7070:7070"
+    environment:
+      - CART_SERVICE_PORT=7070
+      - VALKEY_ADDR=valkey-cart:6379
+      - FLAGD_HOST=flagd
+      - FLAGD_PORT=8013
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - OTEL_RESOURCE_ATTRIBUTES=service.namespace=opentelemetry-demo,service.version=1.11.0
+      - OTEL_SERVICE_NAME=cartservice
+      - ASPNETCORE_URLS=http://*:7070
+    networks:
+      - aiops-net
+    depends_on:
+      - valkey-cart
+      - flagd
+    restart: unless-stopped
+
+  # Product Catalog Service (Go)
+  productcatalogservice:
+    image: ghcr.io/open-telemetry/demo:1.11.0-productcatalogservice
+    container_name: product-catalog-service
+    ports:
+      - "3550:3550"
+    environment:
+      - PRODUCT_CATALOG_SERVICE_PORT=3550
+      - FLAGD_HOST=flagd
+      - FLAGD_PORT=8013
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE=cumulative
+      - OTEL_RESOURCE_ATTRIBUTES=service.namespace=opentelemetry-demo,service.version=1.11.0
+      - OTEL_SERVICE_NAME=productcatalogservice
+    networks:
+      - aiops-net
+    depends_on:
+      - flagd
+    restart: unless-stopped
+
+  # Payment Service (Node.js)
+  paymentservice:
+    image: ghcr.io/open-telemetry/demo:1.11.0-paymentservice
+    container_name: payment-service
+    ports:
+      - "50051:50051"
+    environment:
+      - PAYMENT_SERVICE_PORT=50051
+      - FLAGD_HOST=flagd
+      - FLAGD_PORT=8013
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE=cumulative
+      - OTEL_RESOURCE_ATTRIBUTES=service.namespace=opentelemetry-demo,service.version=1.11.0
+      - OTEL_SERVICE_NAME=paymentservice
+    networks:
+      - aiops-net
+    depends_on:
+      - flagd
+    restart: unless-stopped
+
+  # Currency Service (C++)
+  currencyservice:
+    image: ghcr.io/open-telemetry/demo:1.11.0-currencyservice
+    container_name: currency-service
+    ports:
+      - "7001:7001"
+    environment:
+      - CURRENCY_SERVICE_PORT=7001
+      - VERSION=1.11.0
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - OTEL_RESOURCE_ATTRIBUTES=service.namespace=opentelemetry-demo,service.version=1.11.0,service.name=currencyservice
+    networks:
+      - aiops-net
+    restart: unless-stopped
+
+  # Shipping Service (Rust)
+  shippingservice:
+    image: ghcr.io/open-telemetry/demo:1.11.0-shippingservice
+    container_name: shipping-service
+    ports:
+      - "50050:50050"
+    environment:
+      - SHIPPING_SERVICE_PORT=50050
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - OTEL_RESOURCE_ATTRIBUTES=service.namespace=opentelemetry-demo,service.version=1.11.0
+      - OTEL_SERVICE_NAME=shippingservice
+    networks:
+      - aiops-net
+    restart: unless-stopped
+
+  # Email Service (Ruby)
+  emailservice:
+    image: ghcr.io/open-telemetry/demo:1.11.0-emailservice
+    container_name: email-service
+    ports:
+      - "6060:6060"
+    environment:
+      - APP_ENV=production
+      - EMAIL_SERVICE_PORT=6060
+      - OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://otel-collector:4318/v1/traces
+      - OTEL_RESOURCE_ATTRIBUTES=service.namespace=opentelemetry-demo,service.version=1.11.0
+      - OTEL_SERVICE_NAME=emailservice
+    networks:
+      - aiops-net
+    restart: unless-stopped
+
+  # Checkout Service (Go)
+  checkoutservice:
+    image: ghcr.io/open-telemetry/demo:1.11.0-checkoutservice
+    container_name: checkout-service
+    ports:
+      - "5050:5050"
+    environment:
+      - CHECKOUT_SERVICE_PORT=5050
+      - CART_SERVICE_ADDR=cartservice:7070
+      - CURRENCY_SERVICE_ADDR=currencyservice:7001
+      - EMAIL_SERVICE_ADDR=http://emailservice:6060
+      - PAYMENT_SERVICE_ADDR=paymentservice:50051
+      - PRODUCT_CATALOG_SERVICE_ADDR=productcatalogservice:3550
+      - SHIPPING_SERVICE_ADDR=shippingservice:50050
+      - FLAGD_HOST=flagd
+      - FLAGD_PORT=8013
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE=cumulative
+      - OTEL_RESOURCE_ATTRIBUTES=service.namespace=opentelemetry-demo,service.version=1.11.0
+      - OTEL_SERVICE_NAME=checkoutservice
+    networks:
+      - aiops-net
+    depends_on:
+      - cartservice
+      - currencyservice
+      - emailservice
+      - paymentservice
+      - productcatalogservice
+      - shippingservice
+      - flagd
+    restart: unless-stopped
+
+  # Frontend (Next.js)
+  frontend:
+    image: ghcr.io/open-telemetry/demo:1.11.0-frontend
+    container_name: frontend
+    ports:
+      - "8080:8080"
+    environment:
+      - PORT=8080
+      - FRONTEND_ADDR=frontend:8080
+      - CART_SERVICE_ADDR=cartservice:7070
+      - CHECKOUT_SERVICE_ADDR=checkoutservice:5050
+      - CURRENCY_SERVICE_ADDR=currencyservice:7001
+      - PRODUCT_CATALOG_SERVICE_ADDR=productcatalogservice:3550
+      - SHIPPING_SERVICE_ADDR=shippingservice:50050
+      - FLAGD_HOST=flagd
+      - FLAGD_PORT=8013
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE=cumulative
+      - OTEL_RESOURCE_ATTRIBUTES=service.namespace=opentelemetry-demo,service.version=1.11.0
+      - OTEL_SERVICE_NAME=frontend
+    networks:
+      - aiops-net
+    depends_on:
+      - cartservice
+      - checkoutservice
+      - currencyservice
+      - productcatalogservice
+      - shippingservice
+      - flagd
+    restart: unless-stopped
+
+  # Load Generator (Python / Locust)
+  loadgenerator:
+    image: ghcr.io/open-telemetry/demo:1.11.0-loadgenerator
+    container_name: load-generator
+    ports:
+      - "8089:8089"
+    environment:
+      - LOCUST_WEB_PORT=8089
+      - LOCUST_USERS=10
+      - LOCUST_HOST=http://frontend:8080
+      - LOCUST_HEADLESS=false
+      - LOCUST_AUTOSTART=true
+      - LOCUST_BROWSER_TRAFFIC_ENABLED=false
+      - LOCUST_WEB_HOST=0.0.0.0
+      - FLAGD_HOST=flagd
+      - FLAGD_PORT=8013
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE=cumulative
+      - OTEL_RESOURCE_ATTRIBUTES=service.namespace=opentelemetry-demo,service.version=1.11.0
+      - OTEL_SERVICE_NAME=loadgenerator
+      - PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python
+    networks:
+      - aiops-net
+    depends_on:
+      - frontend
+      - flagd
+    restart: unless-stopped

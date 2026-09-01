@@ -1,0 +1,3 @@
+[submodule "otel-demo"]
+	path = otel-demo
+	url = https://github.com/open-telemetry/opentelemetry-demo.git
