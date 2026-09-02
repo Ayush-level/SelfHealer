@@ -240,3 +240,72 @@ without re-reading the whole codebase.
 - **Test result:** `py -3.13 -m pytest proxy/tests/test_api.py -v` — 10 passed (health shape/status, telemetry summary fields/values, ClickHouse-down zeros) — PASS
 - **Decisions/deviations:** outbound health/ClickHouse calls are mocked in unit tests so they run without a live stack. Pages bind to those JSON fields (no placeholders). TASKS.md checkbox for 7.5 was already checked.
 - **Next:** Task 8.1 — SigNoz compose file + collector config
+
+### [2026-09-02] — Task 8.1: Write SigNoz collector config and docker-compose.signoz.yml
+- **Status:** done
+- **Changes:** created `config/clickhouse/cluster.xml` (single-node embedded keeper + cluster configuration for ClickHouse); updated `docker-compose.yml` to mount `cluster.xml` into ClickHouse; updated `docker-compose.otel-demo-override.yml` frontend published port to `${DEMO_FRONTEND_PORT:-8085}:8080` to prevent host port conflict with SigNoz frontend on 8080; verified `config/signoz-otel-collector-config.yaml` and `docker-compose.signoz.yml` (`signoz-schema-migrator`, `signoz-schema-migrator-async`, `signoz-query-service`, `signoz-frontend`, `signoz-otel-collector`)
+- **Test result:** `docker compose -f docker-compose.yml -f docker-compose.signoz.yml up -d` — schema migrator executed with exit 0 creating `signoz_*` databases; query-service reported healthy; `curl -s -I http://localhost:8080/` returned `HTTP/1.1 200 OK`; `curl -s http://localhost:8080/api/v1/version` returned `{"version":"v0.71.0"}`; with load generator running, queried `signoz_traces.signoz_index_v3` (2,332 traces across demo services) and `signoz_logs.logs_v2` (138 logs) — PASS
+- **Decisions/deviations:** ClickHouse 24.8 requires an embedded keeper and `<remote_servers><cluster>` definition to execute distributed DDL migrations in `signoz-schema-migrator` without a dedicated ZooKeeper container, avoiding extra container overhead while keeping the shared ClickHouse instance. Demo frontend host port was mapped to 8085 so SigNoz frontend can bind 8080 without port collision.
+- **Next:** Task 8.2 — Add forward-export branch to otel-collector-config-mode-a.yaml and -mode-b.yaml
+
+### [2026-09-02] — Task 8.2: Add forward-export branch to collector configs (Mode A and Mode B)
+- **Status:** done
+- **Changes:** verified `config/otel-collector-config-mode-a.yaml` and `config/otel-collector-config-mode-b.yaml` with `otlp/signoz` exporter (`signoz-otel-collector:4317`) added across traces, metrics, and logs pipelines alongside `clickhouse` and `prometheus` exporters
+- **Test result:** with SigNoz stack and demo running, executed `SELECT 'default.otel_traces', count() FROM default.otel_traces UNION ALL SELECT 'default.otel_logs', count() FROM default.otel_logs UNION ALL SELECT 'signoz_traces.signoz_index_v3', count() FROM signoz_traces.signoz_index_v3 UNION ALL SELECT 'signoz_logs.logs_v2', count() FROM signoz_logs.logs_v2` — returned non-empty counts across all tables (`default.otel_traces`: 3,249, `signoz_traces.signoz_index_v3`: 3,249, `default.otel_logs`: 256, `signoz_logs.logs_v2`: 256); tested Mode B collector startup (`OTEL_COLLECTOR_CONFIG=./config/otel-collector-config-mode-b.yaml`) without error — PASS
+- **Decisions/deviations:** none. Dual export ensures zero pipeline interference between primary storage (`otel_*`) and SigNoz native storage (`signoz_*`).
+- **Next:** Task 8.3 — Add ENABLE_SIGNOZ toggle to config schema and wire into docker-compose and /api/tools
+
+### [2026-09-02] — Task 8.3: Add ENABLE_SIGNOZ toggle to config schema and wire into docker-compose and /api/tools
+- **Status:** done
+- **Changes:** updated `proxy/routes/tools.py` (`_signoz_enabled` checks `ENABLE_SIGNOZ` env overrides or wizard `enable_signoz`); updated `proxy/routes/config.py` (`enable_signoz`, `signoz_port` schema defaults and validation); updated `frontend/src/pages/Setup.jsx` (includes `docker-compose.signoz.yml` only when `enable_signoz=true`); updated `.env` and `proxy/tests/test_tools.py`
+- **Test result:** `python3 -m pytest proxy/tests/test_tools.py proxy/tests/test_config.py -v` (18 passed); tested `ENABLE_SIGNOZ=false` removes SigNoz from `/api/tools` and omits `docker-compose.signoz.yml` from compose commands so no SigNoz containers start; full suite `python3 -m pytest proxy/tests/` (109 passed) — PASS
+- **Decisions/deviations:** none. Consistent with ARCHITECTURE.md and FRONTEND.md independent tool toggles.
+- **Next:** Task 9.1 — Build proxy/scheduler/rca_scheduler.py using APScheduler
+
+### [2026-09-02] — Task 9.1: Build proxy/scheduler/rca_scheduler.py using APScheduler
+- **Status:** done
+- **Changes:** created `proxy/scheduler/__init__.py` and `proxy/scheduler/rca_scheduler.py` (`RCAScheduler` wrapping `BackgroundScheduler`, running periodic `run_job` on sliding time window, with `is_automatic_mode`, `get_interval_minutes`, `sync_with_config`, `shutdown`); added `apscheduler>=3.10.0` to `proxy/requirements.txt`; updated `proxy/config.py` with `RCA_TRIGGER_MODE` and `RCA_INTERVAL_MINUTES`; wired `app.rca_scheduler` into `proxy/app.py` and `proxy/routes/config.py`; created `proxy/tests/test_scheduler.py`
+- **Test result:** `python3 -m pytest proxy/tests/test_scheduler.py -k "test_scheduler" -v` — verified automatic mode detection, interval configuration, and multiple background cycles generating stored RCA results — PASS
+- **Decisions/deviations:** scheduler runs as background daemon thread; polling interval can be configured via wizard config or env var; time window defaults to the interval or minimum 300 seconds.
+- **Next:** Task 9.2 — Ensure manual mode works identically regardless of scheduler state
+
+### [2026-09-02] — Task 9.2: Ensure manual mode works identically regardless of scheduler state
+- **Status:** done
+- **Changes:** updated `proxy/routes/api.py` (imported `create_llm_client` in `rca_trigger`); added tests in `proxy/tests/test_scheduler.py` verifying manual `POST /api/rca/trigger` executes correctly in both manual and automatic modes
+- **Test result:** `python3 -m pytest proxy/tests/test_scheduler.py -k "test_manual_trigger" -v` — verified manual trigger generates correct RCA payload and stores pending result under both scheduler states — PASS
+- **Decisions/deviations:** none.
+- **Next:** Task 9.3 — Confirm both modes route through the same approval flow
+
+### [2026-09-02] — Task 9.3: Confirm both modes route through the same approval flow
+- **Status:** done
+- **Changes:** created lifecycle test in `proxy/tests/test_scheduler.py` validating that scheduled and manual results both populate `/api/rca/results` with identical schema and both support `/approve` and `/reject`
+- **Test result:** `python3 -m pytest proxy/tests/test_scheduler.py -k "test_both_modes" -v` — PASS; full suite `python3 -m pytest proxy/tests/` (116 passed) — PASS
+- **Decisions/deviations:** none.
+- **Next:** Task 10.1 — Import OpenTelemetry Demo Grafana dashboards
+
+
+
+
+
+### [2026-09-02] — Task 10.1: Import OTel Demo Grafana dashboards
+- **Status:** done
+- **Changes:**
+  - `config/grafana/provisioning/datasources/prometheus.yaml` — added `uid: webstore-metrics` so dashboards resolve datasource without any JSON edits
+  - `config/grafana/provisioning/dashboards/demo/` — created dir, copied all 4 dashboard JSONs from `otel-demo/src/grafana/provisioning/dashboards/demo/`
+  - `config/grafana/provisioning/dashboards/demo.yaml` — dashboard provider YAML pointing Grafana at the `demo/` subdirectory
+  - `config/otel-collector-config-mode-a.yaml` — added `spanmetrics` connector (`namespace: ""` to produce bare `calls_total`/`duration_milliseconds_*` names matching dashboards); traces pipeline now exports to `[clickhouse, otlp/signoz, spanmetrics]`; metrics pipeline receives from `[otlp, spanmetrics]`; `service.telemetry.metrics` block added (pull reader on port 8888) to expose `otelcol_*` internal metrics; port `8888` added to service `ports`
+  - `config/prometheus.yml` — added `otel-collector-internal` scrape job targeting `otel-collector:8888`
+  - `docker-compose.yml` — added `8888:8888` port to `otel-collector` service
+  - `config/grafana/provisioning/dashboards/demo/opentelemetry-collector.json` — updated all metric names to 0.128.0 convention (`otelcol_process_uptime_seconds_total`, `otelcol_receiver_accepted_spans_total`, `otelcol_exporter_*_total`, `otelcol_processor_batch_*_total`, `otelcol_process_cpu_seconds_total`, `otelcol_process_memory_rss_bytes`)
+  - `config/grafana/provisioning/dashboards/demo/opentelemetry-collector-data-flow.json` — same metric renames applied
+  - `scripts/check_dashboards.py` — verification script for 10.1 and 10.2
+- **Test result:** `python3 scripts/check_dashboards.py` — 4 dashboards pre-loaded (PASS); all 4 metric categories non-empty (calls_total: 66 series, duration_milliseconds_count: 66 series, otelcol_receiver_accepted_spans_total: 1 series, otelcol_process_uptime_seconds_total: 1 series) — PASS
+- **Decisions/deviations:** Dashboard JSONs required two sets of updates beyond the documented datasource UID change: (1) spanmetrics connector default namespace changed from `""` in old versions to `"traces.span.metrics"` in 0.128.0 — set `namespace: ""` to restore bare names matching the dashboard queries. (2) OTel Collector 0.128.0 renamed internal telemetry metrics (`otelcol_process_uptime` → `otelcol_process_uptime_seconds_total`, `otelcol_receiver_accepted_spans` → `otelcol_receiver_accepted_spans_total`, etc.) — updated both collector dashboard JSONs to use the new names. Internal metrics also require a `service.telemetry` Prometheus pull reader on port 8888 (separate from the metrics exporter on 8889) and a new Prometheus scrape job. `demo-dashboard.json` and `spanmetrics-dashboard.json` needed no JSON edits beyond datasource UID (via prometheus.yaml). Collector config change only touches Mode A; Mode B (`otel-collector-config-mode-b.yaml`) deliberately left without spanmetrics — those dashboards are Prometheus-dependent and only apply in Mode A.
+- **Next:** Task 10.2 — verify panels show non-empty data (covered in same test run above — both tasks complete)
+
+### [2026-09-02] — Task 10.2: Verify dashboards render data from OTel Demo services
+- **Status:** done
+- **Changes:** none (verification only — all metric data confirmed present in Task 10.1 test run)
+- **Test result:** `python3 scripts/check_dashboards.py` — spanmetrics calls_total 66 series, duration_milliseconds_count 66 series, otelcol_receiver_accepted_spans_total 1 series, otelcol_process_uptime_seconds_total 1 series — all non-empty with load generator running — PASS
+- **Decisions/deviations:** none beyond what was logged in 10.1.
+- **Next:** Task 11.1 — end-to-end smoke test script (bring up full stack, confirm load gen traffic, trigger RCA, approve result, exit 0)

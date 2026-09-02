@@ -16,5 +16,8 @@ class Config:
     LLM_API_KEY: str = os.getenv("LLM_API_KEY", "")
     ENABLE_SIGNOZ: str = os.getenv("ENABLE_SIGNOZ", "false")
     SIGNOZ_PORT: int = int(os.getenv("SIGNOZ_PORT", "8080"))
+    RCA_TRIGGER_MODE: str = os.getenv("RCA_TRIGGER_MODE", "manual")
+    RCA_INTERVAL_MINUTES: int = int(os.getenv("RCA_INTERVAL_MINUTES", "15"))
     PROXY_PORT: int = int(os.getenv("PROXY_PORT", "5000"))
     DEBUG: bool = os.getenv("DEBUG", "False").lower() in ("true", "1")
+

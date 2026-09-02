@@ -82,4 +82,6 @@ def post_config():
         return jsonify({"error": "Validation failed", "details": errors}), 400
 
     current_app.wizard_config = merged
+    if hasattr(current_app, "rca_scheduler") and current_app.rca_scheduler:
+        current_app.rca_scheduler.sync_with_config()
     return jsonify(merged), 200

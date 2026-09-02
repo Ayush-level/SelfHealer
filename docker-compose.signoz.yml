@@ -24,6 +24,24 @@ services:
         condition: service_healthy
     restart: on-failure
 
+  # Async migrator from SigNoz v0.71; --dev skips cluster/replication so we
+  # can reuse the shared ClickHouse on aiops-net instead of a second instance.
+  signoz-schema-migrator-async:
+    image: signoz/signoz-schema-migrator:0.111.24
+    command:
+      - async
+      - --dsn=tcp://clickhouse:9000
+      - --dev
+      - --up=
+    networks:
+      - aiops-net
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+      signoz-schema-migrator:
+        condition: service_completed_successfully
+    restart: on-failure
+
   signoz-query-service:
     image: signoz/query-service:0.71.0
     command:

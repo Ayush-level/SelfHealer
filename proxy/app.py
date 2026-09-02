@@ -12,6 +12,8 @@ from proxy.routes.config import config_bp
 from proxy.routes.tools import tools_bp
 from proxy.routes.api import api_bp
 from proxy.store.rca_store import RCAStore
+from proxy.scheduler.rca_scheduler import RCAScheduler
+
 
 
 def create_app(test_config: Optional[Dict[str, Any]] = None) -> Flask:
@@ -40,6 +42,10 @@ def create_app(test_config: Optional[Dict[str, Any]] = None) -> Flask:
 
     # In-memory wizard config store (empty dict = first run)
     app.wizard_config = {}
+
+    # Initialize RCA scheduler
+    app.rca_scheduler = RCAScheduler(app)
+
 
     # Register blueprints
     app.register_blueprint(health_bp)

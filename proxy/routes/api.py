@@ -16,6 +16,7 @@ import requests as _requests
 from flask import Blueprint, current_app, jsonify, request
 
 from proxy.correlation.engine import CorrelationEngine
+from proxy.rca.llm_client import create_llm_client
 from proxy.routes.tools import _signoz_enabled
 
 api_bp = Blueprint("api", __name__, url_prefix="/api")

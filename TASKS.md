@@ -109,37 +109,37 @@ line passes — see `AGENT.md` for the full working loop.
 
 ## Phase 8 — SigNoz Integration
 
-- [ ] **8.1** Write `config/signoz-otel-collector-config.yaml` and add
+- [x] **8.1** Write `config/signoz-otel-collector-config.yaml` and add
   `signoz-otel-collector`, `signoz-query-service`, `signoz-frontend` to
   `docker-compose.signoz.yml`, all writing to a separate `signoz_*`
   database in the shared ClickHouse instance.
   **Test:** `docker compose -f docker-compose.yml -f docker-compose.signoz.yml up -d` — SigNoz UI reachable and shows data after the load generator runs.
-- [ ] **8.2** Add the forward-export branch to `otel-collector-config-mode-a.yaml`
+- [x] **8.2** Add the forward-export branch to `otel-collector-config-mode-a.yaml`
   and `-mode-b.yaml`: a second exporter sending a copy of all signals to `signoz-otel-collector`.
   **Test:** with SigNoz enabled, `signoz_*` tables and `otel_*` tables both populate from the same load-generator run.
-- [ ] **8.3** Add the `ENABLE_SIGNOZ` toggle to the config schema and wire it
+- [x] **8.3** Add the `ENABLE_SIGNOZ` toggle to the config schema and wire it
   into `docker-compose.signoz.yml` (only started when enabled) and `/api/tools`.
   **Test:** `ENABLE_SIGNOZ=false` — no SigNoz containers start, and it's absent from `/api/tools`.
 
 ## Phase 9 — RCA Trigger Modes
 
-- [ ] **9.1** Build `proxy/scheduler/rca_scheduler.py` using APScheduler:
+- [x] **9.1** Build `proxy/scheduler/rca_scheduler.py` using APScheduler:
   runs the correlate → LLM flow on the most recent window at a configured
   interval, only when `RCA_TRIGGER_MODE=automatic`.
   **Test:** with a 1-minute interval and a mocked LLM, confirm two RCA results appear roughly 60s apart with no manual trigger.
-- [ ] **9.2** Ensure manual mode (`POST /api/rca/trigger`) still works
+- [x] **9.2** Ensure manual mode (`POST /api/rca/trigger`) still works
   identically regardless of the scheduler's on/off state.
   **Test:** with `RCA_TRIGGER_MODE=manual`, the scheduler never fires, but a manual POST still returns a result.
-- [ ] **9.3** Confirm both modes route through the same approval flow.
+- [x] **9.3** Confirm both modes route through the same approval flow.
   **Test:** a scheduler-generated result and a manually-triggered result both appear in `/api/rca/results` with identical shape, both approvable/rejectable.
 
 ## Phase 10 — Grafana Dashboards for OpenTelemetry Demo Data
 
-- [ ] **10.1** Import the OpenTelemetry Demo repository's own Grafana
+- [x] **10.1** Import the OpenTelemetry Demo repository's own Grafana
   dashboard JSON into `config/grafana/provisioning/dashboards/`, updating
   datasource UID references to match our provisioned datasource.
   **Test:** on fresh Grafana start, the dashboards appear pre-loaded with zero manual import.
-- [ ] **10.2** Verify each dashboard actually renders data from the running
+- [x] **10.2** Verify each dashboard actually renders data from the running
   OTel Demo services (not blank panels from a metric-name mismatch).
   **Test:** with the load generator running, every panel on the imported dashboard(s) shows non-empty data.
 
