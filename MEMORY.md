@@ -309,3 +309,19 @@ without re-reading the whole codebase.
 - **Test result:** `python3 scripts/check_dashboards.py` — spanmetrics calls_total 66 series, duration_milliseconds_count 66 series, otelcol_receiver_accepted_spans_total 1 series, otelcol_process_uptime_seconds_total 1 series — all non-empty with load generator running — PASS
 - **Decisions/deviations:** none beyond what was logged in 10.1.
 - **Next:** Task 11.1 — end-to-end smoke test script (bring up full stack, confirm load gen traffic, trigger RCA, approve result, exit 0)
+
+### [2026-09-02] — Task 11.1: End-to-end smoke test script (full demo stack)
+- **Status:** done
+- **Changes:**
+  - `scripts/e2e_smoke_test.py` — 15-step full-stack smoke test: compose up (Mode A + demo + SigNoz + prometheus-ui), frontend `npm run build`, ClickHouse/Grafana/SigNoz/Collector/proxy readiness, otel_traces ≥ 50 rows, spanmetrics `calls_total` in Prometheus, 4 Grafana dashboards pre-loaded, `signoz_traces.signoz_index_v3` non-empty, `POST /api/rca/trigger` → pending result with all 4 fields, `POST /rca/<id>/approve` → approved, `GET /api/rca/results` + `GET /rca/<id>` both confirm approved status
+  - `docker-compose.yml` — added `13133:13133` port to `otel-collector` service (health_check extension, needed by proxy `/api/health` and the smoke test)
+- **Test result:** `python3 scripts/e2e_smoke_test.py --skip-compose --skip-build` — all 15 steps passed, exit 0. Selected output: ClickHouse/Grafana/SigNoz/Collector all healthy; 50+ traces; calls_total 61 series; 4 dashboards; SigNoz traces present; RCA triggered (confidence=0.54, impacted frontend); approved and verified in results list — PASS
+- **Decisions/deviations:** Three fixes required during test execution: (1) port 13133 was not published — added to docker-compose.yml and recreated container. (2) spanmetrics step originally used docker exec wget (port 9090 not published) — simplified to direct HTTP after adding `docker-compose.prometheus-ui.yml` to the compose command, which publishes port 9090. (3) approve/results steps used `/api/rca/<id>/approve` (wrong prefix) — corrected to `/rca/<id>/approve` matching `rca_bp` routes; `/api/rca/results` is the correct path for the list endpoint. Full compose command for the test (and for production demo) is: `docker compose -f docker-compose.yml -f docker-compose.otel-demo-override.yml -f docker-compose.signoz.yml -f docker-compose.prometheus-ui.yml --profile mode-a up -d`.
+- **Next:** Task 11.2 — update README.md Quick Start with final verified commands
+
+### [2026-09-02] — Task 11.2: Update README.md Quick Start
+- **Status:** done
+- **Changes:** rewrote `README.md` — 10-step Quick Start (prerequisites → clone/configure → pip install → frontend build → full-stack compose up → proxy start → RCA trigger/approve/reject/list curl examples → e2e smoke test → Grafana with 4 auto-provisioned dashboards → SigNoz → fault injection → tear-down); complete service URL table (13 entries including port 13133 and port 8085 for demo frontend); full Proxy API reference (13 routes); updated test count to 116; architecture overview paragraph linking to ARCHITECTURE.md and FRONTEND.md; documentation table linking all 6 doc files
+- **Test result:** inline Python verification script checked: all 4 compose override files exist on disk, `profiles: ["mode-a"]` present, `FLASK_APP=proxy.app` correct, test count 116 matches, submodule pinned at 1.11.0, e2e script exists, proxy/requirements.txt and frontend/package.json both present — PASS
+- **Decisions/deviations:** README now documents the four-file compose command as the canonical full-stack invocation. The older two-file command (without SigNoz or prometheus-ui) is documented as the "without SigNoz" alternative. All curl examples use `/api/rca/trigger` for triggering (api_bp) and `/rca/<id>/approve` for approval (rca_bp), matching the actual route prefixes.
+- **Next:** all tasks in TASKS.md complete — project is demo-ready

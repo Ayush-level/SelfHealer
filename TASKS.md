@@ -145,10 +145,10 @@ line passes — see `AGENT.md` for the full working loop.
 
 ## Phase 11 — Demo Readiness
 
-- [ ] **11.1** Write an end-to-end smoke test script: bring up the full
+- [x] **11.1** Write an end-to-end smoke test script: bring up the full
   stack (Mode A, Grafana, SigNoz, frontend), confirm the OpenTelemetry
   Demo's load generator is producing traffic, hit `/api/rca/trigger`,
   approve the result.
   **Test:** script exits `0` with no manual intervention.
-- [ ] **11.2** Update `README.md`'s Quick Start with the final, verified commands.
+- [x] **11.2** Update `README.md`'s Quick Start with the final, verified commands.
   **Test:** a clean checkout + the README's exact commands reproduces a working demo.

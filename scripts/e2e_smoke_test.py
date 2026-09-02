@@ -291,23 +291,17 @@ def step_wait_spanmetrics(timeout: float) -> None:
     _log("Step 10: waiting for spanmetrics in Prometheus (calls_total) …")
 
     def _has_spanmetrics() -> bool:
-        sql = "SELECT count() AS n FROM otel_traces WHERE ServiceName != ''"
-        rows = _ch_query(sql)
+        rows = _ch_query("SELECT count() AS n FROM otel_traces WHERE ServiceName != ''")
         if not rows or int(rows[0]["n"]) == 0:
             return False
-        # Query Prometheus via docker exec (port not published by default)
-        result = subprocess.run(
-            [
-                "docker", "exec", "selfhealer-prometheus-1",
-                "wget", "-qO-",
-                "http://localhost:9090/api/v1/query?query=calls_total",
-            ],
-            capture_output=True, text=True, timeout=10,
+        # Prometheus port is published (via docker-compose.prometheus-ui.yml)
+        r = requests.get(
+            "http://localhost:9090/api/v1/query",
+            params={"query": "calls_total"},
+            timeout=10,
         )
-        if result.returncode != 0:
-            return False
-        data = json.loads(result.stdout)
-        return len(data.get("data", {}).get("result", [])) > 0
+        r.raise_for_status()
+        return len(r.json().get("data", {}).get("result", [])) > 0
 
     _wait_for("calls_total present in Prometheus", _has_spanmetrics, timeout)
 
@@ -392,13 +386,13 @@ def step_rca_trigger(base: str) -> str:
 # ---------------------------------------------------------------------------
 
 def step_approve(base: str, rca_id: str) -> None:
-    _log(f"Step 14: POST /api/rca/{rca_id}/approve …")
+    _log(f"Step 14: POST /rca/{rca_id}/approve …")
     r = _post(
-        f"{base}/api/rca/{rca_id}/approve",
+        f"{base}/rca/{rca_id}/approve",
         {"note": "e2e smoke-test approval"},
     )
     if r.status_code != 200:
-        _fail("14", f"/api/rca/{rca_id}/approve returned {r.status_code}: {r.text}")
+        _fail("14", f"/rca/{rca_id}/approve returned {r.status_code}: {r.text}")
 
     data = r.json()
     if data.get("status") != "approved":
@@ -423,7 +417,14 @@ def step_verify_results(base: str, rca_id: str) -> None:
     if match.get("status") != "approved":
         _fail("15", f"Expected approved, got '{match.get('status')}'")
 
-    _log(f"  ✓ /api/rca/results contains id={rca_id} status=approved")
+    # Also confirm GET /rca/<id> returns the same persisted state
+    r2 = _get(f"{base}/rca/{rca_id}")
+    if r2.status_code != 200:
+        _fail("15", f"GET /rca/{rca_id} returned {r2.status_code}")
+    if r2.json().get("status") != "approved":
+        _fail("15", f"GET /rca/{rca_id} status mismatch: {r2.json().get('status')}")
+
+    _log(f"  ✓ /api/rca/results + GET /rca/{rca_id} both show status=approved")
 
 
 # ---------------------------------------------------------------------------
