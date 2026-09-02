@@ -68,6 +68,14 @@ def test_tools_custom_port(client):
     assert ":3001" in grafana["url"]
 
 
+def test_tools_enable_signoz_env_false_hides_signoz(client, monkeypatch):
+    """ENABLE_SIGNOZ=false removes SigNoz even if wizard saved it on."""
+    monkeypatch.setenv("ENABLE_SIGNOZ", "false")
+    _save_config(client, {"enable_signoz": True, "signoz_port": 8080})
+    tools = client.get("/api/tools").get_json()
+    assert all(t["name"] != "SigNoz" for t in tools)
+
+
 def test_tools_empty_config_uses_defaults(client):
     """No config saved yet → defaults include Grafana + Prometheus."""
     r = client.get("/api/tools")

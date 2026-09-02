@@ -212,3 +212,31 @@ without re-reading the whole codebase.
 - **Test result:** `npm install` required `npm approve-scripts esbuild` before esbuild's postinstall script ran; `npm run build` — exit 0, 39 modules transformed, 174 kB bundle. Preview server at `:4173` served the SPA shell. Each page catches API errors and renders an error message rather than crashing, verified by inspection.
 - **Decisions/deviations:** `App.jsx` `getConfig()` error path sets `hasConfig=false` (→ redirect to `/setup`) rather than hanging on `null` — proxy-unreachable at cold start lands on the wizard, not a blank screen. Pages are functional stubs (real data-binding wired to the API contract) rather than purely empty placeholders, so 7.2–7.5 extend them rather than rewrite them. `node_modules/` not committed (`.gitignore` already present from Vite).
 - **Next:** Task 7.2 — Build `proxy/routes/config.py`: `GET/POST /api/config`
+
+### [2026-09-02] — Task 7.2: Build proxy/routes/config.py GET/POST /api/config
+- **Status:** done (was implemented in repo; MEMORY entry was missing — repaired this session)
+- **Changes:** `proxy/routes/config.py` (GET/POST `/api/config`, in-memory `app.wizard_config`, validation + defaults); `proxy/app.py` registers `config_bp`; `proxy/tests/test_config.py`
+- **Test result:** `py -3.13 -m pytest proxy/tests/test_config.py -v` — 10 passed (GET empty on first run; POST then GET returns exactly what was saved; validation 400s; defaults applied) — PASS
+- **Decisions/deviations:** config is stored in-memory (`app.wizard_config`), not written back to `.env` at runtime — proxy has no Docker socket and cannot restart containers; FRONTEND.md already treats save + displayed compose command as the contract. TASKS.md had 7.2–7.5 checked without MEMORY entries; repo already contained the implementation.
+- **Next:** Task 7.3 — Setup wizard confirmation command
+
+### [2026-09-02] — Task 7.3: Setup wizard compose-command confirmation
+- **Status:** done (was implemented in repo; MEMORY entry was missing — repaired this session)
+- **Changes:** `frontend/src/pages/Setup.jsx` (`buildCommand` from saved form: compose files + `--profile mode-a` for Mode A); command-generation tests in `proxy/tests/test_config.py`
+- **Test result:** `py -3.13 -m pytest proxy/tests/test_config.py -v` — Mode A with all tools includes `-f docker-compose.yml`, `-f docker-compose.prometheus-ui.yml`, `-f docker-compose.signoz.yml`, `--profile mode-a`; Mode B without optional files omits those flags — PASS
+- **Decisions/deviations:** command is assembled on the client from the saved form (same flags the Python tests assert). Wizard still cannot run compose itself.
+- **Next:** Task 7.4 — `GET /api/tools`
+
+### [2026-09-02] — Task 7.4: Build proxy/routes/tools.py GET /api/tools
+- **Status:** done (was implemented in repo; MEMORY entry was missing — repaired this session)
+- **Changes:** `proxy/routes/tools.py` (Grafana / Prometheus UI / SigNoz links from `wizard_config`); `proxy/tests/test_tools.py`
+- **Test result:** `py -3.13 -m pytest proxy/tests/test_tools.py -v` — 7 passed; toggling a tool off removes it from `/api/tools` — PASS
+- **Decisions/deviations:** empty `wizard_config` still lists Grafana + Prometheus via `cfg.get(..., default)` so the Tools page is usable before the first save; SigNoz stays off until explicitly enabled.
+- **Next:** Task 7.5 — Home + Telemetry pages
+
+### [2026-09-02] — Task 7.5: Home and Telemetry Analysis pages
+- **Status:** done (was implemented in repo; MEMORY entry was missing — repaired this session)
+- **Changes:** `proxy/routes/api.py` (`GET /api/health`, `GET /api/telemetry/summary`); `frontend/src/pages/Home.jsx`, `Telemetry.jsx`; `proxy/tests/test_api.py`
+- **Test result:** `py -3.13 -m pytest proxy/tests/test_api.py -v` — 10 passed (health shape/status, telemetry summary fields/values, ClickHouse-down zeros) — PASS
+- **Decisions/deviations:** outbound health/ClickHouse calls are mocked in unit tests so they run without a live stack. Pages bind to those JSON fields (no placeholders). TASKS.md checkbox for 7.5 was already checked.
+- **Next:** Task 8.1 — SigNoz compose file + collector config

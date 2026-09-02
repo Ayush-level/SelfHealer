@@ -6,9 +6,32 @@ The list is derived entirely from app.wizard_config — the frontend renders
 whatever this returns without hardcoding which tools exist.
 """
 
+import os
+
 from flask import Blueprint, current_app, jsonify
 
 tools_bp = Blueprint("tools", __name__, url_prefix="/api")
+
+
+def _env_flag(name: str) -> str | None:
+    raw = os.getenv(name)
+    if raw is None or raw.strip() == "":
+        return None
+    return raw.strip().lower()
+
+
+def _signoz_enabled(cfg: dict) -> bool:
+    """Wizard toggle, overridden by ENABLE_SIGNOZ env when set.
+
+    ENABLE_SIGNOZ=false always hides SigNoz from /api/tools, matching
+    the compose file not being included (no SigNoz containers).
+    """
+    env = _env_flag("ENABLE_SIGNOZ")
+    if env in ("false", "0", "no", "off"):
+        return False
+    if env in ("true", "1", "yes", "on"):
+        return True
+    return bool(cfg.get("enable_signoz", False))
 
 
 def _build_tools(cfg: dict) -> list:
@@ -28,8 +51,8 @@ def _build_tools(cfg: dict) -> list:
             "url": f"http://localhost:{port}",
             "description": "Metrics explorer (Mode A only)",
         })
-    if cfg.get("enable_signoz", False):
-        port = cfg.get("signoz_port", 8080)
+    if _signoz_enabled(cfg):
+        port = cfg.get("signoz_port", int(current_app.config.get("SIGNOZ_PORT", 8080)))
         tools.append({
             "name": "SigNoz",
             "url": f"http://localhost:{port}",

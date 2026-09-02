@@ -12,6 +12,10 @@ processors:
 exporters:
   clickhouse:
     endpoint: tcp://clickhouse:9000?database=default
+  otlp/signoz:
+    endpoint: signoz-otel-collector:4317
+    tls:
+      insecure: true
 
 extensions:
   health_check:
@@ -23,12 +27,12 @@ service:
     traces:
       receivers: [otlp]
       processors: [batch]
-      exporters: [clickhouse]
+      exporters: [clickhouse, otlp/signoz]
     metrics:
       receivers: [otlp]
       processors: [batch]
-      exporters: [clickhouse]
+      exporters: [clickhouse, otlp/signoz]
     logs:
       receivers: [otlp]
       processors: [batch]
-      exporters: [clickhouse]
+      exporters: [clickhouse, otlp/signoz]

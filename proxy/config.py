@@ -14,5 +14,7 @@ class Config:
     CLICKHOUSE_URL: str = os.getenv("CLICKHOUSE_URL", "http://localhost:8123")
     LLM_PROVIDER: str = os.getenv("LLM_PROVIDER", "mock")
     LLM_API_KEY: str = os.getenv("LLM_API_KEY", "")
+    ENABLE_SIGNOZ: str = os.getenv("ENABLE_SIGNOZ", "false")
+    SIGNOZ_PORT: int = int(os.getenv("SIGNOZ_PORT", "8080"))
     PROXY_PORT: int = int(os.getenv("PROXY_PORT", "5000"))
     DEBUG: bool = os.getenv("DEBUG", "False").lower() in ("true", "1")

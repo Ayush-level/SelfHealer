@@ -16,7 +16,7 @@ import requests as _requests
 from flask import Blueprint, current_app, jsonify, request
 
 from proxy.correlation.engine import CorrelationEngine
-from proxy.rca.llm_client import create_llm_client
+from proxy.routes.tools import _signoz_enabled
 
 api_bp = Blueprint("api", __name__, url_prefix="/api")
 
@@ -61,7 +61,7 @@ def api_health():
         prom_url = current_app.config.get("PROMETHEUS_URL", "http://localhost:9090")
         services["prometheus"] = _probe(f"{prom_url}/-/healthy")
 
-    if cfg.get("enable_signoz", False):
+    if _signoz_enabled(cfg):
         port = cfg.get("signoz_port", 8080)
         services["signoz"] = _probe(f"http://localhost:{port}/api/v1/health")
 
